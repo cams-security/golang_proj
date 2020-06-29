@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"github.com/CaliDog/certstream-go"
@@ -8,47 +9,50 @@ import (
 )
 
 var log = logging.MustGetLogger("example")
-var susTlds = [15]string{".xyz", ".top", ".pw", ".cn", ".ru", ".io", ".tk", ".rest", ".fit", ".gq", ".work", ".ml", ".ga", ".cf", ".wang"}
+var susTlds = [16]string{".com", ".xyz", ".top", ".pw", ".cn", ".ru", ".io", ".tk", ".rest", ".fit", ".gq", ".work", ".ml", ".ga", ".cf", ".wang"}
 var susCNs = [11]string{"C=US, ST=Denial, L=Springfield, O=Dis", "Localhost", "C=XX, L=Default City, O=Default Company Ltd", "example.com", "C=AU, ST=Some-State, O=Internet Widgits Pty Ltd", "AsyncRAT Server", "*", "domain.com/O=My Company Name LTD./C=US", "Orcus Server", "localhost", "C=AU, ST=Some-State, O=Internet Widgits Pty Ltd"}
 
-// type cert struct  {
-//   cert [] cert 'json:"cert"'
-//
-// }
 func stream() {
 	// The false flag specifies that we want heartbeat messages.
 	stream, errStream := certstream.CertStreamEventStream(false)
 	for {
 		select {
 		case jq := <-stream:
-			messageType, err := jq.String("message_type")
-			// sleep(10000)
-			// test, err := jq.String("data")
-			if err != nil {
+
+			messageType, msgTypErr := jq.String("message_type")
+			issuer, issuerErr := jq.String("data", "chain", "0", "subject", "O")
+			domain, domainErr := jq.String("data", "leaf_cert", "all_domains", "0")
+
+			if msgTypErr != nil {
 				log.Fatal("Error decoding jq string")
 			}
-			// log.Info("recv: ", jq)
-			// cert = log.Info("recv: ", jq)
+			if domainErr != nil {
+				log.Fatal("Error decoding jq string")
+			}
+			if issuerErr != nil {
+				log.Fatal("Error decoding jq string on err2")
+			}
+
 			duration := time.Duration(10) * time.Second
 			time.Sleep(duration)
-			log.Info("Message type -> ", messageType)
-			// log.Info(jq.String("data", "leaf_cert", "subject", "CN"))
-			issuer, test := jq.String("data", "chain", "extensions", "authorityInfoAccess")
-			log.Info("Issuer -> ", issuer, test)
-			// log.Info("Data -> ", test)
-			time.Sleep(10000)
+
+			if strings.Contains(issuer, "Let's Encrypt") {
+				log.Info("Message type -> ", messageType)
+				log.Info("Issuer -> ", issuer)
+				log.Info("Domain -> ", domain)
+				time.Sleep(10000)
+			}
+			for i := 0; i < len(susTlds); i++ {
+				if strings.Contains(domain, susTlds[i]) {
+					log.Info("FOUND: -> ", domain)
+				}
+			}
 		case err := <-errStream:
 			log.Error(err)
+
 		}
 	}
 }
-
-// func analysis() {
-// 	cert = cert
-// 	print(cert)
-// 	time.Sleep(10000)
-//
-// }
 
 func main() {
 	stream()
